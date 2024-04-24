@@ -7,29 +7,23 @@ class Node:
         self.right = None
         self.height = 1
 
-    def insert(self, key):
-        if key < self.key:
-            if self.left is None:
-                self.left = Node(key)
-            else:
-                self.left.insert(key)
-        else:
-            if self.right is None:
-                self.right = Node(key)
-            else:
-                self.right.insert(key)
-
-    def find_min(self):
-        current = self
-        while current.left:
-            current = current.left
-        return current.key
-
-    def find_max(self):
-        current = self
-        while current.right:
-            current = current.right
-        return current.key
+    def insert(self, *keys):
+        for key in keys:
+            current = self
+            while True:
+                if key < current.key:
+                    if current.left is None:
+                        current.left = Node(key)
+                        break
+                    else:
+                        current = current.left
+                else:
+                    if current.right is None:
+                        current.right = Node(key)
+                        break
+                    else:
+                        current = current.right
+                
 class BinarySearchTree:
     def __init__(self):
         self.root = None
@@ -41,14 +35,16 @@ class BinarySearchTree:
             self.root.insert(key)
 
     def find_min(self):
-        if self.root is None:
-            return None
-        return self.root.find_min()
+        current = self.root
+        while current.left:
+            current = current.left
+        return current.key
 
     def find_max(self):
-        if self.root is None:
-            return None
-        return self.root.find_max()
+        current = self
+        while current.right:
+            current = current.right
+        return current.key
         
     def inorder_traversal(self, node):
         if node:
@@ -250,11 +246,13 @@ def main():
         choice = input("nodes> ")
 
         if choice == "1":
-            key = int(input("Enter node value: "))
-            bst.insert(key)
+            keys = input("Enter node values separated by spaces: ").split()
+            keys = [int(key) for key in keys]
+            bst.insert(*keys)
         elif choice == "2":
-            key = int(input("Enter node value: "))
-            avl.insert(key)
+            keys = input("Enter node values separated by spaces: ").split()
+            keys = [int(key) for key in keys]
+            avl.root.insert(*keys)
         elif choice == "3":
             print("BST Tree (Inorder):")
             bst.inorder_traversal(bst.root)
