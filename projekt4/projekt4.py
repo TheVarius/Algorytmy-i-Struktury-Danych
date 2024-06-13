@@ -1,12 +1,16 @@
-import networkx as nx
+import copy
 import random
+import time
+import networkx as nx
+import matplotlib.pyplot as plt
 
 class Graph:
-    def __init__(self, vertexes):
-        self.vertexes = vertexes
-        self.graph = {vertex: [] for vertex in range(1, vertexes + 1)}
-        self.matrix = [[0] * (vertexes + 1) for _ in range(1, vertexes + 2)]
+    def __init__(self, vertices):
+        self.vertices = vertices
+        self.graph = {vertex: [] for vertex in range(vertices)}
+        self.matrix = [[0] * vertices for _ in range(vertices)]
         self.table = []
+        self.degrees = {vertex: 0 for vertex in range(vertices)}
 
     def add_edge(self, start, end):
         self.graph[start].append(end)
@@ -15,15 +19,23 @@ class Graph:
         self.matrix[end][start] = 1
         self.table.append((start, end))
         self.table.append((end, start))
+        self.degrees[start] += 1
+        self.degrees[end] += 1
+
+    def remove_edge(self, u, v):
+        self.matrix[u][v] = 0
+        self.matrix[v][u] = 0
+        self.graph[u].remove(v)
+        self.graph[v].remove(u)
+        self.table.remove((u, v))
+        self.table.remove((v, u))
+        self.degrees[u] -= 1
+        self.degrees[v] -= 1
 
     def print_graph(self, representation="matrix"):
         if representation == "matrix":
-            vertexes = sorted(self.graph.keys())
-            print("  |", " ".join(str(vertex) for vertex in vertexes))
-            print("--+" + "-" * (len(vertexes) * 2 - 1))
-            for vertex in vertexes:
-                row = ["1" if x in self.graph[vertex] else "0" for x in vertexes]
-                print(f"{vertex} |", " ".join(row))
+            for row in self.matrix:
+                print(row)
         elif representation == "list":
             for vertex, successors in self.graph.items():
                 print(f"{vertex} |", " ".join(str(x) for x in successors))
@@ -33,147 +45,119 @@ class Graph:
         else:
             print("Invalid graph representation.")
 
-    def hamiltonian_cycle(self, representation="matrix"):
-        n = self.vertexes
-        Path = [-1] * (n + 1)
-        visited = 0
+    def export_graph(self, filename="graph.png"):
+        G = nx.Graph()
+        for vertex in range(self.vertices):
+            G.add_node(vertex)
+        for start, end in self.table:
+            G.add_edge(start, end)
+        pos = nx.spring_layout(G)
+        nx.draw(G, pos, with_labels=True, node_color='skyblue', edge_color='black', node_size=700, font_size=15)
+        plt.savefig(filename)
+        plt.close()
+
+    def is_connected(self):
+        visited = [False] * self.vertices
+        stack = [0]
+        visited[0] = True
+
+        while stack:
+            current = stack.pop()
+            for i in range(self.vertices):
+                if self.matrix[current][i] and not visited[i]:
+                    stack.append(i)
+                    visited[i] = True
+
+        return all(visited)
+
+    def euler(self):
+        if not self.is_connected() or any(degree % 2 != 0 for degree in self.degrees.values()):
+            print("No Euler cycle")
+            return
+
+        graph_copy = copy.deepcopy(self.matrix)
+        cycle = []
+        stack = [0]
+
+        def dfs(v):
+            for u in range(self.vertices):
+                if graph_copy[v][u]:
+                    graph_copy[v][u] = graph_copy[u][v] = 0
+                    dfs(u)
+            cycle.append(v)
+
+        dfs(0)
+        cycle.reverse()
+
+        print("Euler cycle exists")
+        print("Cycle:", cycle)
+
+    def create_hamiltonian_cycle(self):
+        vertices = list(range(self.vertices))
+        random.shuffle(vertices)
+        for i in range(len(vertices)):
+            self.add_edge(vertices[i], vertices[(i + 1) % self.vertices])
+
+    def create_additional_edges(self, target_edges):
+        current_edges = sum(sum(row) for row in self.matrix) // 2
+        edges_to_add = target_edges - current_edges
+
+        while edges_to_add > 0:
+            u, v = random.sample(range(self.vertices), 2)
+            if self.matrix[u][v] == 0:
+                self.add_edge(u, v)
+                edges_to_add -= 1
+
+    def ensure_even_degrees(self):
+        for i in range(self.vertices):
+            if self.degrees[i] % 2 != 0:
+                for j in range(self.vertices):
+                    if self.degrees[j] % 2 != 0 and i != j and self.matrix[i][j] == 0:
+                        self.add_edge(i, j)
+                        break
+
+    def create_graph_with_saturation(self, saturation):
+        self.create_hamiltonian_cycle()
+        max_edges = self.vertices * (self.vertices - 1) // 2
+        target_edges = int(max_edges * saturation)
+        self.create_additional_edges(target_edges)
+        self.ensure_even_degrees()
+
+    def create_non_hamiltonian_graph(self, saturation):
+        self.create_graph_with_saturation(saturation)
+        isolated_vertex = random.choice(range(self.vertices))
+        for i in range(self.vertices):
+            if self.matrix[isolated_vertex][i] == 1:
+                self.remove_edge(isolated_vertex, i)
+        self.degrees[isolated_vertex] = 0
+
+    def find_hamiltonian_cycle(self):
+        n = self.vertices
+        Path = [-1] * n
+        Path[0] = 0
 
         def is_valid_vertex(v, pos):
-            if representation == "matrix":
-                if self.matrix[Path[pos - 1]][v] == 0:
-                    return False
-            elif representation == "list":
-                if v not in self.graph[Path[pos - 1]]:
-                    return False
-            elif representation == "table":
-                if (Path[pos - 1], v) not in self.table:
-                    return False
+            if not self.matrix[Path[pos - 1]][v]:
+                return False
             if v in Path[:pos]:
                 return False
             return True
 
-        def hamiltonian(v):
-            nonlocal visited
-            visited += 1
-            Path[visited] = v
+        def hamiltonian(pos):
+            if pos == n:
+                return self.matrix[Path[pos - 1]][Path[0]] == 1
 
-            if visited == n:
-                if representation == "matrix":
-                    if self.matrix[Path[visited]][Path[1]] == 1:
+            for v in range(1, n):
+                if is_valid_vertex(v, pos):
+                    Path[pos] = v
+                    if hamiltonian(pos + 1):
                         return True
-                elif representation == "list":
-                    if Path[1] in self.graph[Path[visited]]:
-                        return True
-                elif representation == "table":
-                    if (Path[visited], Path[1]) in self.table:
-                        return True
-                visited -= 1
-                return False
+                    Path[pos] = -1
 
-            for i in range(1, n + 1):
-                if is_valid_vertex(i, visited + 1):
-                    if hamiltonian(i):
-                        return True
-
-            visited -= 1
             return False
 
-        def hcycle():
-            nonlocal visited
-            Path[1] = 1
-            visited = 0
-            return hamiltonian(1)
-
-        if hcycle():
-            return Path[1:] + [Path[1]]
+        if hamiltonian(1):
+            print("Hamiltonian cycle exists")
+            print("Cycle:", Path + [Path[0]])
         else:
-            return "Cykl Hamiltona nie istnieje"
-
-    def find_eulerian_cycle(self, representation="matrix"):
-        def dfs_euler(v):
-            while True:
-                if representation == "list":
-                    if not self.graph[v]:
-                        break
-                    u = self.graph[v].pop()
-                    self.graph[u].remove(v)
-                elif representation == "matrix":
-                    u = next((u for u, val in enumerate(self.matrix[v]) if val), None)
-                    if u is None:
-                        break
-                    self.matrix[v][u] = 0
-                    self.matrix[u][v] = 0
-                elif representation == "table":
-                    u = next((end for start, end in self.table if start == v), None)
-                    if u is None:
-                        break
-                    self.table.remove((v, u))
-                    self.table.remove((u, v))
-                dfs_euler(u)
-            eulerian_cycle.append(v)
-
-        # Sprawdzenie warunków koniecznych dla istnienia cyklu Eulera
-        if representation == "list":
-            for vertices in self.graph.values():
-                if len(vertices) % 2 != 0:
-                    return "Graf nie ma cyklu Eulera (wierzchołek o nieparzystym stopniu)"
-        elif representation == "matrix":
-            for i in range(1, self.vertexes + 1):
-                if sum(self.matrix[i]) % 2 != 0:
-                    return "Graf nie ma cyklu Eulera (wierzchołek o nieparzystym stopniu)"
-        elif representation == "table":
-            degrees = {vertex: 0 for vertex in range(1, self.vertexes + 1)}
-            for start, end in self.table:
-                degrees[start] += 1
-            if any(degree % 2 != 0 for degree in degrees.values()):
-                return "Graf nie ma cyklu Eulera (wierzchołek o nieparzystym stopniu)"
-
-        # Inicjalizacja
-        eulerian_cycle = []
-        start_vertex = next(iter(self.graph))  # Startujemy z dowolnego wierzchołka
-
-        # Uruchomienie DFS
-        dfs_euler(start_vertex)
-        
-        # Cykl jest w odwrotnej kolejności, więc odwracamy go
-        eulerian_cycle.reverse()
-        return eulerian_cycle
-
-def generate_hamiltonian_graph(num_nodes, edge_saturation):
-    """
-    Generuje graf Hamiltona z określoną liczbą wierzchołków i nasyceniem krawędzi.
-    """
-    graph = nx.cycle_graph(num_nodes)  # Rozpocznij od grafu cyklu
-
-    total_possible_edges = (num_nodes * (num_nodes - 1)) // 2
-    target_num_edges = int((edge_saturation / 100) * total_possible_edges)
-    edges_to_add = target_num_edges - graph.number_of_edges()
-
-    # Losowo dodawaj krawędzie, aż osiągniesz pożądaną liczbę krawędzi
-    while edges_to_add > 0:
-        node1 = random.randint(0, num_nodes - 1)
-        node2 = random.randint(0, num_nodes - 1)
-        if node1 != node2 and not graph.has_edge(node1, node2):
-            graph.add_edge(node1, node2)
-            edges_to_add -= 1
-    
-    return graph
-
-def generate_non_hamiltonian_graph(num_nodes, edge_saturation):
-    """
-    Generuje graf nie-Hamiltona z określoną liczbą wierzchołków i nasyceniem krawędzi.
-    """
-    graph = nx.complete_graph(num_nodes)  # Rozpocznij od grafu pełnego
-
-    total_possible_edges = (num_nodes * (num_nodes - 1)) // 2
-    num_edges_to_remove = total_possible_edges - int((edge_saturation / 100) * total_possible_edges)
-
-    # Losowo usuwaj krawędzie, aż osiągniesz pożądaną liczbę krawędzi
-    edges = list(graph.edges())
-    edges_to_remove = random.sample(edges, num_edges_to_remove)
-    graph.remove_edges_from(edges_to_remove)
-    
-    isolated_node = random.choice(list(graph.nodes()))  # Usuń węzeł, aby złamać możliwość ścieżki Hamiltona
-    graph.remove_node(isolated_node)
-    
-    return graph
+            print("No Hamiltonian cycle")
