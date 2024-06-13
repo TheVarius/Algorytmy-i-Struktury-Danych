@@ -1,64 +1,75 @@
 import sys
 import matplotlib.pyplot as plt
-from graph import Graph, generate_hamiltonian_graph, generate_non_hamiltonian_graph
+import networkx as nx
+from projekt4 import Graph
+
+def generate_hamiltonian_graph(nodes, saturation):
+    g = Graph(nodes)
+    g.create_graph_with_saturation(saturation / 100)
+    return g
+
+def generate_non_hamiltonian_graph(nodes, saturation):
+    g = Graph(nodes)
+    g.create_non_hamiltonian_graph(saturation / 100)
+    return g
 
 def main():
     if len(sys.argv) < 2:
-        print("Określ tryb: --hamilton lub --non-hamilton")
+        print("Specify mode: --hamilton or --non-hamilton")
         sys.exit(0)
     
     mode = sys.argv[1]
     nodes = int(input("nodes> "))
     if nodes <= 10:
-        print("Liczba węzłów musi być większa niż 10")
+        print("Number of nodes must be greater than 10")
         sys.exit(1)
-
-    g = Graph(nodes)
 
     if mode == "--hamilton":
         saturation = int(input("saturation> "))
-        nx_graph = generate_hamiltonian_graph(nodes, saturation)
+        g = generate_hamiltonian_graph(nodes, saturation)
     elif mode == "--non-hamilton":
-        saturation = 50  # Stałe nasycenie dla grafu nie-Hamiltona
-        nx_graph = generate_non_hamiltonian_graph(nodes, saturation)
+        saturation = 50  # Fixed saturation for non-Hamiltonian graph
+        g = generate_non_hamiltonian_graph(nodes, saturation)
     else:
-        print("Nieznany tryb")
+        print("Unknown mode")
         sys.exit(1)
-
-    # Konwersja NetworkX graph na nasz Graph obiekt
-    for u, v in nx_graph.edges():
-        g.add_edge(u + 1, v + 1)  # Przesunięcie indeksów o 1, aby zaczynały się od 1
-
-    # Rysuj wygenerowany graf z etykietami
-    nx.draw(nx_graph, with_labels=True)
-    plt.show()
-
     while True:
-        print("\nWybierz operację:")
-        print("1. Wydrukuj graf")
-        print("2. Znajdź cykl Hamiltona")
-        print("3. Znajdź cykl Eulera")
-        print("4. Zakończ")
-        print("5. Wygeneruj graficzną reprezentację grafu")
+        print("\nSelect an operation:")
+        print("1. Print the graph")
+        print("2. Find Hamiltonian cycle")
+        print("3. Find Euler cycle")
+        print("4. Export graph as image")
+        print("5. Exit")
 
-        choice = input("Wybór: ")
+        choice = input("Choice: ")
         if choice == "1":
-            representation = input("Podaj reprezentację grafu (matrix/list/table): ")
+            print("Select graph representation:")
+            print("1. matrix")
+            print("2. list")
+            print("3. table")
+            rep_choice = input("Representation: ")
+            if rep_choice == "1":
+                representation = "matrix"
+            elif rep_choice == "2":
+                representation = "list"
+            elif rep_choice == "3":
+                representation = "table"
+            else:
+                print("Invalid representation choice.")
+                sys.exit(1)
             g.print_graph(representation)
         elif choice == "2":
-            representation = input("Podaj reprezentację grafu (matrix/list/table): ")
-            print(g.hamiltonian_cycle(representation))
+            g.find_hamiltonian_cycle()
         elif choice == "3":
-            representation = input("Podaj reprezentację grafu (matrix/list/table): ")
-            print(g.find_eulerian_cycle(representation))
+            g.euler()
         elif choice == "4":
-            break
+            filename = input("Enter filename (with .png extension): ")
+            g.export_graph(filename)
+            print(f"Graph exported as {filename}")
         elif choice == "5":
-            # Rysuj graf z etykietami
-            nx.draw(nx_graph, with_labels=True)
-            plt.show()
+            break
         else:
-            print("Nieprawidłowy wybór. Spróbuj ponownie.")
+            print("Invalid choice. Try again.")
 
 if __name__ == "__main__":
     main()
